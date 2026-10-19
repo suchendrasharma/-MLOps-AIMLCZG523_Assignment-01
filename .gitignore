@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data: raw downloads are reproducible via scripts/download_data.py
+data/raw/*
+!data/raw/.gitkeep
+
+# MLflow local tracking store
+mlruns/
+mlartifacts/
+mlflow.db
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
