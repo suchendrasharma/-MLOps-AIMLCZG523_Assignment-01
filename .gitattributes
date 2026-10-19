@@ -3,3 +3,5 @@
 *.jpg binary
 *.ipynb text eol=lf
 *.joblib binary
+*.docx binary
+*.pdf binary

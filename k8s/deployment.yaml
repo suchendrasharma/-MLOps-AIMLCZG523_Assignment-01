@@ -43,7 +43,7 @@ spec:
           # Built locally and imported into the cluster by scripts/k8s_deploy.ps1 (Docker
           # Desktop's kind node has its own image store), so no registry pull is needed.
           # Bump the tag for every new build: the same tag is never re-pulled.
-          image: heart-api:1.0.1
+          image: heart-api:1.0.2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

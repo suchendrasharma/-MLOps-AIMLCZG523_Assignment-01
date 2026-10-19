@@ -34,7 +34,15 @@ class PatientFeatures(BaseModel):
         None, description="Thallium test: 3 normal, 6 fixed defect, 7 reversible defect")
 
 
+# Real output of the champion model for samples/patient_high_risk.json; without explicit
+# examples the OpenAPI docs show auto-generated, self-contradictory values.
+EXAMPLE_PREDICTION = {"prediction": 1, "risk_label": "high risk",
+                      "probability": 0.9915, "confidence": 0.9915}
+
+
 class Prediction(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": EXAMPLE_PREDICTION})
+
     prediction: Literal[0, 1] = Field(..., description="1 = heart disease predicted")
     risk_label: Literal["high risk", "low risk"]
     probability: float = Field(..., ge=0, le=1, description="P(heart disease)")
@@ -42,7 +50,11 @@ class Prediction(BaseModel):
 
 
 class PredictionResponse(Prediction):
-    model_config = ConfigDict(protected_namespaces=())  # allow `model_*` field names
+    model_config = ConfigDict(
+        protected_namespaces=(),  # allow `model_*` field names
+        json_schema_extra={"example": {**EXAMPLE_PREDICTION, "model_version": "3",
+                                       "request_id": "3f9c2a1b7d4e5f60"}},
+    )
 
     model_version: str
     request_id: str

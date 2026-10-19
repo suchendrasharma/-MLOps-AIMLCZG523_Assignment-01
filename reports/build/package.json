@@ -1,0 +1,8 @@
+{
+  "name": "heart-mlops-report",
+  "private": true,
+  "description": "Generates the assignment report (DOCX) from reports/build/facts.json",
+  "dependencies": {
+    "docx": "9.11.0"
+  }
+}

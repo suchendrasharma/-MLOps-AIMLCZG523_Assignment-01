@@ -33,3 +33,6 @@ Thumbs.db
 test-reports/
 train.log
 gate.md
+
+# Report build previews
+reports/build/preview/

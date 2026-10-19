@@ -228,6 +228,18 @@ pytest --cov              # with coverage report
 | `test_monitoring.py` | Prometheus scrape config and RBAC, alert rules (severity, summary, only exported metrics, drift bounds), dashboard queries and layout, load-generator request mix |
 | `test_api_packaging.py` | Serve pins match the main pins, no training stack in the image, non-root user, health check, `.dockerignore` allow-list |
 
+## Report, screenshots and video
+
+- **Report:** [reports/Heart_Disease_MLOps_Report.pdf](reports/Heart_Disease_MLOps_Report.pdf) (also `.docx`). It is generated from the repository's own artefacts, so it can be rebuilt after retraining or adding screenshots:
+  ```powershell
+  python reports/build/architecture.py         # architecture diagram
+  python reports/build/collect_facts.py        # numbers quoted in the report -> facts.json
+  docker build -t heart-report reports/build   # Node + docx + LibreOffice toolchain (once)
+  docker run --rm -v "${PWD}:/work" heart-report   # writes the DOCX and PDF
+  ```
+- **Screenshots:** the [screenshots/](screenshots/) folder. Missing ones appear as labelled placeholders in the report, with the command to capture them.
+- **Video:** recording script in [reports/video_script.md](reports/video_script.md).
+
 ## Project layout
 
 | Path | Purpose |

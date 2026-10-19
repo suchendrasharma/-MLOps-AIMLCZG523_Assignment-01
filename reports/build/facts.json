@@ -1,0 +1,257 @@
+{
+  "repo_url": "https://github.com/suchendrasharma/-MLOps-AIMLCZG523_Assignment-01",
+  "metadata": {
+    "model_name": "heart-disease-classifier",
+    "model_version": "3",
+    "model_family": "logistic_regression",
+    "feature_set": "base",
+    "best_params": {
+      "C": 0.1,
+      "class_weight": null,
+      "penalty": "l2"
+    },
+    "decision_threshold": 0.5,
+    "input_features": [
+      "age",
+      "trestbps",
+      "chol",
+      "thalach",
+      "oldpeak",
+      "ca",
+      "sex",
+      "cp",
+      "fbs",
+      "restecg",
+      "exang",
+      "slope",
+      "thal"
+    ],
+    "cv_metrics": {
+      "cv_roc_auc": 0.9117,
+      "cv_roc_auc_std": 0.0174,
+      "cv_accuracy": 0.8469,
+      "cv_accuracy_std": 0.029,
+      "cv_precision": 0.8695,
+      "cv_precision_std": 0.0662,
+      "cv_recall": 0.7921,
+      "cv_recall_std": 0.0482,
+      "cv_f1": 0.8262,
+      "cv_f1_std": 0.0298
+    },
+    "test_metrics": {
+      "test_roc_auc": 0.9621,
+      "test_accuracy": 0.8852,
+      "test_precision": 0.8387,
+      "test_recall": 0.9286,
+      "test_f1": 0.8814
+    },
+    "mlflow_run_id": "f996b7b0437d4e2c8940a84431727ac3",
+    "model_sha256": "d864f31609ea146451f4ac15710cba003e93341e319716ecab3f71c6e613867b",
+    "trained_at": "2026-10-19T11:25:59+00:00",
+    "data_sha256": "a22e72853f4638c3617c3de7f8559ef1b90676bd42e299b256c67d6384153979",
+    "git_commit": "f098ab6",
+    "sklearn_version": "1.5.2",
+    "n_train": "242",
+    "n_test": "61",
+    "mode": "full"
+  },
+  "comparison": [
+    {
+      "model": "logistic_regression",
+      "features": "base",
+      "cv_roc_auc": 0.9117,
+      "cv_roc_auc_std": 0.0174,
+      "cv_recall": 0.7921,
+      "test_roc_auc": 0.9621,
+      "test_accuracy": 0.8852,
+      "test_precision": 0.8387,
+      "test_recall": 0.9286,
+      "test_f1": 0.8814
+    },
+    {
+      "model": "logistic_regression",
+      "features": "engineered",
+      "cv_roc_auc": 0.9093,
+      "cv_roc_auc_std": 0.0117,
+      "cv_recall": 0.7834,
+      "test_roc_auc": 0.9545,
+      "test_accuracy": 0.8525,
+      "test_precision": 0.8065,
+      "test_recall": 0.8929,
+      "test_f1": 0.8475
+    },
+    {
+      "model": "random_forest",
+      "features": "base",
+      "cv_roc_auc": 0.8985,
+      "cv_roc_auc_std": 0.029,
+      "cv_recall": 0.7739,
+      "test_roc_auc": 0.9567,
+      "test_accuracy": 0.8852,
+      "test_precision": 0.8387,
+      "test_recall": 0.9286,
+      "test_f1": 0.8814
+    },
+    {
+      "model": "random_forest",
+      "features": "engineered",
+      "cv_roc_auc": 0.8968,
+      "cv_roc_auc_std": 0.027,
+      "cv_recall": 0.7557,
+      "test_roc_auc": 0.961,
+      "test_accuracy": 0.8852,
+      "test_precision": 0.8387,
+      "test_recall": 0.9286,
+      "test_f1": 0.8814
+    },
+    {
+      "model": "gradient_boosting",
+      "features": "base",
+      "cv_roc_auc": 0.8839,
+      "cv_roc_auc_std": 0.0267,
+      "cv_recall": 0.7561,
+      "test_roc_auc": 0.96,
+      "test_accuracy": 0.9016,
+      "test_precision": 0.8667,
+      "test_recall": 0.9286,
+      "test_f1": 0.8966
+    },
+    {
+      "model": "gradient_boosting",
+      "features": "engineered",
+      "cv_roc_auc": 0.8835,
+      "cv_roc_auc_std": 0.0264,
+      "cv_recall": 0.7648,
+      "test_roc_auc": 0.9578,
+      "test_accuracy": 0.9016,
+      "test_precision": 0.8667,
+      "test_recall": 0.9286,
+      "test_f1": 0.8966
+    }
+  ],
+  "mlflow": {
+    "n_runs": 357,
+    "selection_run": "8c8c5be30bde4fcfbf797704b1e145b0",
+    "experiment": "heart-disease-classification",
+    "registered_model": "heart-disease-classifier"
+  },
+  "dataset": {
+    "rows": 303,
+    "features": 13,
+    "positive_rate": 0.4587,
+    "missing": {
+      "ca": 4,
+      "thal": 2
+    },
+    "category_rates": {
+      "cp": {
+        "1": {
+          "rate": 0.304,
+          "n": 23
+        },
+        "2": {
+          "rate": 0.18,
+          "n": 50
+        },
+        "3": {
+          "rate": 0.209,
+          "n": 86
+        },
+        "4": {
+          "rate": 0.729,
+          "n": 144
+        }
+      },
+      "thal": {
+        "3": {
+          "rate": 0.223,
+          "n": 166
+        },
+        "6": {
+          "rate": 0.667,
+          "n": 18
+        },
+        "7": {
+          "rate": 0.761,
+          "n": 117
+        }
+      },
+      "ca": {
+        "0": {
+          "rate": 0.261,
+          "n": 176
+        },
+        "1": {
+          "rate": 0.677,
+          "n": 65
+        },
+        "2": {
+          "rate": 0.816,
+          "n": 38
+        },
+        "3": {
+          "rate": 0.85,
+          "n": 20
+        }
+      },
+      "exang": {
+        "0": {
+          "rate": 0.309,
+          "n": 204
+        },
+        "1": {
+          "rate": 0.768,
+          "n": 99
+        }
+      },
+      "sex": {
+        "0": {
+          "rate": 0.258,
+          "n": 97
+        },
+        "1": {
+          "rate": 0.553,
+          "n": 206
+        }
+      }
+    }
+  },
+  "tests": {
+    "total": 131,
+    "files": {
+      "test_api.py": 28,
+      "test_api_packaging.py": 4,
+      "test_data.py": 16,
+      "test_download.py": 3,
+      "test_features.py": 12,
+      "test_k8s_manifests.py": 12,
+      "test_model.py": 18,
+      "test_monitoring.py": 13,
+      "test_predict_cli.py": 9,
+      "test_quality_gate.py": 8,
+      "test_reproducibility.py": 8
+    }
+  },
+  "image_tag": "heart-api:1.0.2",
+  "measured": {
+    "rollout_without_prestop": "2 of 161 requests failed",
+    "rollout_with_prestop": "0 failures in 4 of 5 rounds (~160 requests each)",
+    "load_test_5400": {
+      "total": 5400,
+      "ok": 5138,
+      "rejected_422": 262,
+      "errors": 0,
+      "note": "included a live rolling update to a new image tag"
+    },
+    "latency_in_pod_ms": 7.0,
+    "latency_in_cluster_ms": 8.8,
+    "latency_via_localhost_lb_ms": 60,
+    "cpu_throttled_pct_500m": 12,
+    "pod_split": "471 / 312",
+    "self_heal_seconds": 6,
+    "alert_pending_s": 22,
+    "alert_firing_s": 142,
+    "alert_resolved_s": 22,
+    "ci_run_minutes": 5
+  }
+}

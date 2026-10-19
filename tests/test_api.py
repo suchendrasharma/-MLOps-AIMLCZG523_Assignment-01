@@ -44,6 +44,13 @@ class TestOps:
         paths = client.get("/openapi.json").json()["paths"]
         assert "/predict" in paths and "/predict/batch" in paths
 
+    def test_openapi_response_example_is_consistent(self, client):
+        schemas = client.get("/openapi.json").json()["components"]["schemas"]
+        ex = schemas["PredictionResponse"]["example"]
+        assert (ex["prediction"] == 1) == (ex["risk_label"] == "high risk")
+        assert ex["prediction"] == int(ex["probability"] >= 0.5)
+        assert ex["confidence"] == max(ex["probability"], 1 - ex["probability"])
+
 
 class TestPredict:
     def test_high_risk_patient(self, client):
