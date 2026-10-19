@@ -28,3 +28,10 @@ filterwarnings = [
     # third-party: mlflow 2.17 still uses pydantic v1-style validators
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]
+
+[tool.coverage.run]
+source = ["heart"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

@@ -14,6 +14,8 @@ pip install -r requirements-dev.txt
 pip install -e .
 ```
 
+Conda alternative: `conda env create -f environment.yml && conda activate heart-mlops`.
+
 ## Data
 
 ```powershell
@@ -48,12 +50,50 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # http://127.0.0.1:5000
 | Gradient Boosting | base | 0.884 ± 0.027 | 0.756 | 0.960 | 0.929 |
 | Gradient Boosting | + hr_pct_max | 0.884 ± 0.026 | 0.765 | 0.958 | 0.929 |
 
+## Model packaging and reproducibility
+
+| Artifact | Format | Used by |
+|---|---|---|
+| `models/model.joblib` | Full sklearn `Pipeline` (preprocessing + model) | API, `scripts/predict.py` |
+| `models/mlflow_model/` | MLflow pyfunc model, with the `heart` package bundled (`code/`), signature and input example | `mlflow.pyfunc.load_model("models/mlflow_model")`, `mlflow models serve` |
+| `models/metadata.json` | Model card: version, family, parameters, CV and test metrics, `model_sha256`, `data_sha256`, git commit | API `/health`, reproducibility tests |
+
+Reproducibility is enforced by tests, not just documented:
+- **Pinned environment:** every package in `requirements.txt` is pinned with `==`, including mlflow's SQLAlchemy and Alembic, which mlflow itself leaves unpinned. `.python-version` and `environment.yml` (conda) target Python 3.11.
+- **Fixed seeds:** the train/test split, CV folds and every estimator use `random_state=42`.
+- **`tests/test_reproducibility.py`** checks:
+  - the model file's checksum matches `metadata.json`;
+  - the training data hash is unchanged;
+  - rebuilding the model from `metadata.json` alone gives identical predictions;
+  - the recorded test metrics recompute exactly;
+  - the MLflow-format model agrees with the joblib model.
+
+## Inference (CLI)
+
+```powershell
+python scripts/predict.py samples/patient_high_risk.json
+python scripts/predict.py samples/patients_batch.json        # list input, includes a missing value
+python scripts/predict.py data/processed/heart_clean.csv --limit 5
+```
+
+Each prediction returns `prediction` (0/1), `risk_label`, `probability` (P(disease)) and `confidence` (the probability of the predicted class).
+
 ## Tests
 
 ```powershell
-pytest                    # all tests, about 30 s
+pytest                    # all tests, about 2 min
 pytest -m "not slow"      # skip the end-to-end training test
+pytest --cov              # with coverage report
 ```
+
+| File | Covers |
+|---|---|
+| `test_data.py` | Loading, `?` → NaN, binary target, dtypes, de-duplication, schema validation |
+| `test_download.py` | Download fallback, skip if present, failure exit (network stubbed) |
+| `test_features.py` | Engineered feature, NaN coercion, imputation, scaling, one-hot encoding, unseen categories |
+| `test_model.py` | Metrics, champion selection rule, determinism, save/load, prediction schema, end-to-end training |
+| `test_reproducibility.py` | Committed artifacts: checksums, data hash, rebuild equality, metric recomputation |
+| `test_predict_cli.py` | CLI on the sample files, CSV input, error handling |
 
 ## Project layout
 
@@ -64,7 +104,8 @@ pytest -m "not slow"      # skip the end-to-end training test
 | `notebooks/` | EDA and inference demo |
 | `src/heart/` | Data, feature, training, evaluation and prediction code |
 | `api/` | FastAPI serving app |
-| `models/` | Exported model pipeline and metadata |
+| `models/` | Exported model (joblib + MLflow format) and metadata |
+| `samples/` | Example patient JSON inputs for the CLI and API |
 | `tests/` | Pytest unit tests |
 | `k8s/` | Kubernetes manifests (API and monitoring) |
 | `.github/workflows/` | CI pipeline |

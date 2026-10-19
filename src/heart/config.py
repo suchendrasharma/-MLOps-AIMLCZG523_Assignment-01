@@ -15,6 +15,7 @@ CLEAN_FILE = PROCESSED_DIR / "heart_clean.csv"
 
 MODEL_FILE = MODELS_DIR / "model.joblib"
 METADATA_FILE = MODELS_DIR / "metadata.json"
+MLFLOW_MODEL_DIR = MODELS_DIR / "mlflow_model"
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2

@@ -1,0 +1,62 @@
+[
+  {
+    "age": 51,
+    "trestbps": 140,
+    "chol": 298,
+    "thalach": 122,
+    "oldpeak": 4.2,
+    "ca": 3,
+    "sex": 1,
+    "cp": 4,
+    "fbs": 0,
+    "restecg": 0,
+    "exang": 1,
+    "slope": 2,
+    "thal": 7
+  },
+  {
+    "age": 39,
+    "trestbps": 94,
+    "chol": 199,
+    "thalach": 179,
+    "oldpeak": 0.0,
+    "ca": 0,
+    "sex": 0,
+    "cp": 3,
+    "fbs": 0,
+    "restecg": 0,
+    "exang": 0,
+    "slope": 1,
+    "thal": 3
+  },
+  {
+    "age": 57,
+    "trestbps": 140,
+    "chol": 192,
+    "thalach": 148,
+    "oldpeak": 0.4,
+    "ca": 0,
+    "sex": 1,
+    "cp": 4,
+    "fbs": 0,
+    "restecg": 0,
+    "exang": 0,
+    "slope": 2,
+    "thal": 6
+  },
+  {
+    "age": 58,
+    "trestbps": 125,
+    "chol": 220,
+    "thalach": 144,
+    "oldpeak": 0.4,
+    "ca": null,
+    "sex": 1,
+    "cp": 2,
+    "fbs": 0,
+    "restecg": 0,
+    "exang": 0,
+    "slope": 2,
+    "thal": 7
+  }
+]

@@ -142,11 +142,13 @@ def test_quick_training_run_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
     monkeypatch.setattr(config, "MODEL_FILE", tmp_path / "models" / "model.joblib")
     monkeypatch.setattr(config, "METADATA_FILE", tmp_path / "models" / "metadata.json")
+    monkeypatch.setattr(config, "MLFLOW_MODEL_DIR", tmp_path / "models" / "mlflow_model")
     monkeypatch.setattr(config, "FIGURES_DIR", tmp_path / "figures")
 
     champion = train.run(quick=True, do_register=True)
 
     assert config.MODEL_FILE.exists()
+    assert (config.MLFLOW_MODEL_DIR / "MLmodel").exists()
     meta = load_metadata(config.METADATA_FILE)
     assert meta["model_version"] == "1"
     assert meta["mlflow_run_id"] == champion["run_id"]

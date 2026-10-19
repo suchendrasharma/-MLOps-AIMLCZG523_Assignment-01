@@ -16,6 +16,7 @@ Experiment design
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 from datetime import UTC, datetime
 
@@ -180,20 +181,39 @@ def train_one(name, estimator, grid, variant, X_train, X_test, y_train, y_test, 
         log_figure(plot_feature_importance(best), "feature_importance.png")
         mlflow.log_text(pd.DataFrame(search.cv_results_).to_csv(index=False), "cv_results.csv")
 
-        X_example = X_train.head(5).astype(float)
-        mlflow.sklearn.log_model(
-            best, artifact_path="model",
-            signature=infer_signature(X_example, best.predict_proba(X_example)[:, 1]),
-            input_example=X_example,
-            code_paths=[str(config.PROJECT_ROOT / "src" / "heart")],  # custom transformer
-            pip_requirements=[f"scikit-learn=={sklearn.__version__}",
-                              f"pandas=={pd.__version__}", "numpy", "joblib"],
-        )
+        mlflow.sklearn.log_model(best, artifact_path="model",
+                                 **mlflow_model_kwargs(best, X_train.head(5)))
         print(f"  {name:<20} {variant:<10} cv_auc={cv['cv_roc_auc']:.4f} "
               f"(±{cv['cv_roc_auc_std']:.3f})  test_auc={test['test_roc_auc']:.4f}")
         return {"model": name, "features": variant, "run_id": run.info.run_id,
                 "best_params": strip_prefix(search.best_params_), **cv, **test,
                 "pipeline": best, "holdout_proba": proba}
+
+
+def mlflow_model_kwargs(pipeline, X_example: pd.DataFrame) -> dict:
+    """Signature, example and environment for an MLflow-format model.
+
+    `code_paths` ships the `heart` package with the model, because the pipeline contains
+    the custom FeatureEngineer and must be loadable without this repo installed.
+    """
+    X_example = X_example.astype(float)
+    return {
+        "signature": infer_signature(X_example, pipeline.predict_proba(X_example)[:, 1]),
+        "input_example": X_example,
+        "code_paths": [str(config.PROJECT_ROOT / "src" / "heart")],
+        "pip_requirements": [f"scikit-learn=={sklearn.__version__}",
+                             f"pandas=={pd.__version__}", "numpy", "joblib"],
+    }
+
+
+def file_sha256(path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def rebuild_from_metadata(metadata: dict):
+    """Unfitted pipeline with the champion's exact configuration (for reproducibility)."""
+    estimator = clone(MODELS[metadata["model_family"]][0]).set_params(**metadata["best_params"])
+    return build_pipeline(estimator, add_hr_ratio=FEATURE_VARIANTS[metadata["feature_set"]])
 
 
 def register(run_id: str) -> str:
@@ -203,9 +223,17 @@ def register(run_id: str) -> str:
     return str(version.version)
 
 
-def export(champion: dict, model_version: str, tags: dict) -> None:
+def export(champion: dict, model_version: str, tags: dict, X_example: pd.DataFrame) -> None:
+    """Write the champion in two reusable formats plus a metadata card.
+
+    - models/model.joblib: the fitted sklearn Pipeline (used by the API)
+    - models/mlflow_model/: MLflow pyfunc format, loadable with mlflow.pyfunc.load_model
+    """
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(champion["pipeline"], config.MODEL_FILE)
+    shutil.rmtree(config.MLFLOW_MODEL_DIR, ignore_errors=True)
+    mlflow.sklearn.save_model(champion["pipeline"], str(config.MLFLOW_MODEL_DIR),
+                              **mlflow_model_kwargs(champion["pipeline"], X_example))
     metadata = {
         "model_name": config.REGISTERED_MODEL_NAME,
         "model_version": model_version,
@@ -217,6 +245,7 @@ def export(champion: dict, model_version: str, tags: dict) -> None:
         "cv_metrics": {k: round(champion[k], 4) for k in champion if k.startswith("cv_")},
         "test_metrics": {k: round(champion[k], 4) for k in champion if k.startswith("test_")},
         "mlflow_run_id": champion["run_id"],
+        "model_sha256": file_sha256(config.MODEL_FILE),
         "trained_at": datetime.now(UTC).isoformat(timespec="seconds"),
         **tags,
     }
@@ -263,7 +292,7 @@ def run(quick: bool = False, do_register: bool = True) -> dict:
             log_figure(fig, fname)
 
     model_version = register(champion["run_id"]) if do_register else "unregistered"
-    export(champion, model_version, tags)
+    export(champion, model_version, tags, X_train.head(5))
 
     cols = ["model", "features", "cv_roc_auc", "cv_roc_auc_std", "cv_recall", "test_roc_auc",
             "test_accuracy", "test_recall", "test_precision", "test_f1"]

@@ -1,0 +1,12 @@
+# Conda alternative to the venv setup. Package versions come from requirements.txt,
+# so the two setups cannot drift apart.
+#   conda env create -f environment.yml && conda activate heart-mlops
+name: heart-mlops
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - -r requirements-dev.txt
+      - -e .
