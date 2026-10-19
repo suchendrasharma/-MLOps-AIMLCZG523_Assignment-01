@@ -115,6 +115,80 @@ docker logs heart-api                                        # structured JSON l
 - **Serving dependencies only:** `requirements-serve.txt` has no mlflow, matplotlib or jupyter. Its pins must match `requirements.txt`, which a test enforces. pip, setuptools and the libraries' bundled test suites are removed. The image is about 600 MB, mostly scipy, scikit-learn, pandas and numpy.
 - **Runs as non-root** (uid 10001), with a Docker `HEALTHCHECK` on `/health`. uvicorn is PID 1 (exec form), so `docker stop` shuts it down gracefully.
 
+## Kubernetes deployment (Docker Desktop)
+
+Prerequisite: Docker Desktop → Settings → Kubernetes → **Enable Kubernetes** (context `docker-desktop`).
+
+```powershell
+.\scripts\k8s_deploy.ps1          # build, load image into the cluster, apply, wait for rollout, smoke test
+# or step by step:
+kubectl apply -k k8s/
+kubectl -n heart-mlops rollout status deployment/heart-api
+kubectl -n heart-mlops get pods,svc
+python scripts/smoke_test.py --url http://localhost
+```
+
+The API is then served at **http://localhost** (`/predict`, `/health`, `/metrics`, `/docs`) through the LoadBalancer Service, which Docker Desktop binds to localhost.
+
+| Manifest | Purpose |
+|---|---|
+| `namespace.yaml` | `heart-mlops` namespace |
+| `configmap.yaml` | `LOG_LEVEL`, `MODEL_PATH` passed to the pods as environment variables |
+| `deployment.yaml` | 2 replicas; rolling update with `maxUnavailable: 0`; startup, readiness and liveness probes on `/health`; CPU and memory requests and limits; non-root, read-only root filesystem, all capabilities dropped, seccomp `RuntimeDefault`; `preStop` drain; Prometheus scrape annotations |
+| `service.yaml` | `LoadBalancer`, port 80 → container port 8000 |
+| `pdb.yaml` | PodDisruptionBudget `minAvailable: 1` |
+| `kustomization.yaml` | `kubectl apply -k k8s/` deploys everything |
+
+**Notes and verified behaviour**
+- **Images:** Docker Desktop runs Kubernetes in *kind* mode, where the node has its own containerd image store. The deploy script therefore imports the locally built image into the node (`docker save | ctr images import`, which is what `kind load` does). The image tag is pinned (`heart-api:1.0.0`) with `imagePullPolicy: IfNotPresent`, so no registry is needed.
+- **Load balancing:** 20 requests were split 14/6 across the two pods.
+- **Self-healing:** deleting a pod brings the Deployment back to 2/2 Ready in about 6 seconds.
+- **Zero-downtime rollout:** `kubectl rollout restart` under continuous traffic. Without a `preStop` hook, 2 of 161 requests failed (a terminating pod still received traffic until kube-proxy caught up). With a 5 s `preStop` drain, 4 of 5 rounds had **0 failures** out of about 160 requests each.
+- **CI validation:** manifests are schema-validated in CI with `kubeconform -strict`, and `tests/test_k8s_manifests.py` checks the production rules (probes, resources, security context, selectors, pinned image).
+
+## Monitoring and logging (Prometheus + Grafana)
+
+```powershell
+.\scripts\k8s_deploy.ps1 -Monitoring       # API + monitoring stack
+# or: kubectl apply -k k8s/monitoring/
+python scripts/load_test.py --duration 300 --rps 8                       # realistic mixed traffic
+python scripts/load_test.py --profile high-risk --duration 900           # drives the drift alert
+```
+
+| UI | URL | Notes |
+|---|---|---|
+| Grafana | http://localhost:3000 | The dashboard opens as the home page; anonymous read-only access. Admin login `admin` / `heart-mlops-demo` (local demo only) |
+| Prometheus | http://localhost:9090 | `/targets` shows both API pods; `/alerts` shows the rules |
+
+**Logging:** the API writes one JSON line per request (request ID, path, status, duration) and per prediction (label, probability), viewable with `kubectl -n heart-mlops logs -l app.kubernetes.io/name=heart-api`.
+
+**Metrics pipeline:** Prometheus discovers the API pods through the Kubernetes API, using the `prometheus.io/*` annotations. RBAC is limited to reading pods in `heart-mlops`. It scrapes every 10 s.
+
+**Dashboard: *Heart Disease API · Service & Model Monitoring*** (12 panels)
+- **Headline stats:** requests/s, `/predict` p95 latency, 5xx rate, pods up, serving model version, high-risk share over 30 minutes.
+- **Traffic:** request rate by endpoint and status (4xx = validation rejects), and `/predict` latency at p50, p95 and p99.
+- **Model behaviour:** predictions per minute by risk class; high-risk share compared with the **46% training base rate** (an output-drift signal); the distribution of predicted P(disease).
+- **Load balancing:** prediction requests per pod.
+
+**Alert rules** ([alerts.yml](k8s/monitoring/alerts.yml), all checked by `promtool`)
+
+| Alert | Condition | Severity |
+|---|---|---|
+| HeartApiDown | No pod scraped successfully for 1 min | critical |
+| HeartApiReplicasDegraded | Fewer than 2 replicas up for 2 min | warning |
+| HeartApiHighErrorRate | More than 5% of requests are 5xx for 2 min | critical |
+| HeartApiHighLatency | `/predict` p95 above 500 ms for 5 min | warning |
+| HeartApiManyInvalidRequests | More than 25% of requests rejected (4xx) for 10 min | info |
+| HeartPredictionDrift | High-risk share outside 20–80% (base rate 46%) for 5 min | warning |
+
+Verified live: scaling the API to 1 replica moved `HeartApiReplicasDegraded` to pending after 22 s and firing after 142 s; it resolved 22 s after scaling back to 2.
+
+**Findings from load testing (8 req/s)**
+- **Load balancing:** Kubernetes Services balance **connections**, not requests. With one shared keep-alive connection, every request went to a single pod. With one connection per client thread, traffic split about 60/40.
+- **Latency breakdown:** a prediction takes about 7 ms in the pod (loopback) and about 9 ms through the Service inside the cluster. Requests through Docker Desktop's `localhost` LoadBalancer take about 60 ms, which is a local networking artefact, and that delay also appears in the server-side histogram (the timer starts when the headers arrive).
+- **Latency buckets:** the instrumentator's default buckets (0.1, 0.5, 1 s) cannot resolve millisecond requests, so the API configures 5 ms to 2.5 s buckets.
+- **CPU limit:** 500m throttled about 12% of CFS periods under load; 1 CPU removed the throttling.
+
 ## CI/CD (GitHub Actions)
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request. Each job needs the previous one, so any failure stops the pipeline:
@@ -125,7 +199,7 @@ lint ──▶ test ──▶ train ──▶ docker
 
 | Job | What it does | Fails when | Artifacts / summary |
 |---|---|---|---|
-| **lint** | `ruff check` (inline annotations on the PR), `hadolint` on the Dockerfile | Lint errors | n/a |
+| **lint** | `ruff check` (inline annotations on the PR), `hadolint` on the Dockerfile, `kubeconform -strict` on the API and monitoring manifests, `promtool` on the Prometheus config and alert rules | Lint errors | n/a |
 | **test** | Installs pinned dependencies, `pip check`, then pytest with coverage | Any test fails, or coverage is below 85% | `test-reports` (JUnit, coverage XML/HTML); coverage table in the job summary |
 | **train** | Re-downloads the UCI data and checks the cleaned CSV is byte-identical; runs the full grid search with MLflow; runs the **quality gate** against the committed model | The data differs, training errors, or test ROC-AUC drops by more than 0.02 or falls below 0.85 | `trained-model` (joblib + MLflow model + metadata), `mlflow-tracking` (mlflow.db, mlruns, plots, logs); metrics table in the job summary |
 | **docker** | Builds the image **with the model trained in this run**, runs it, then runs `scripts/smoke_test.py` | The build or any smoke check fails (container logs are printed) | Image pushed to `ghcr.io/suchendrasharma/heart-api` (`latest`, `sha-<commit>`) on `main` only |
@@ -150,6 +224,8 @@ pytest --cov              # with coverage report
 | `test_predict_cli.py` | CLI on the sample files, CSV input, error handling |
 | `test_api.py` | Endpoints, validation (422s), batch limits, request IDs, JSON logs, Prometheus metrics, 500/503 paths, tampered-model refusal |
 | `test_quality_gate.py` | CI quality gate: pass/fail decisions, absolute floor, exit codes, Markdown report |
+| `test_k8s_manifests.py` | Kubernetes rules: kustomization completeness, probes, resources, security context, zero-downtime settings, selectors, scrape annotations |
+| `test_monitoring.py` | Prometheus scrape config and RBAC, alert rules (severity, summary, only exported metrics, drift bounds), dashboard queries and layout, load-generator request mix |
 | `test_api_packaging.py` | Serve pins match the main pins, no training stack in the image, non-root user, health check, `.dockerignore` allow-list |
 
 ## Project layout

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: heart-api
+  namespace: heart-mlops
+  labels:
+    app.kubernetes.io/name: heart-api
+    app.kubernetes.io/part-of: heart-mlops
+spec:
+  # Docker Desktop binds LoadBalancer services to localhost: http://localhost/predict
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: heart-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

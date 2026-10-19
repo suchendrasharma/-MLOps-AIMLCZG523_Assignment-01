@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: heart-api
+  namespace: heart-mlops
+  labels:
+    app.kubernetes.io/name: heart-api
+    app.kubernetes.io/part-of: heart-mlops
+spec:
+  minAvailable: 1   # voluntary disruptions (node drain, upgrades) keep at least one pod serving
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: heart-api

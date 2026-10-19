@@ -1,0 +1,39 @@
+# Monitoring stack:   kubectl apply -k k8s/monitoring/
+#   Prometheus  http://localhost:9090  (targets, alerts)
+#   Grafana     http://localhost:3000  (dashboard opens as the home page; anonymous viewer)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - prometheus-rbac.yaml
+  - prometheus.yaml
+  - grafana.yaml
+
+# Config files live as plain files next to this one; the generated ConfigMaps get a
+# content hash in their name, so editing a file rolls the pods that mount it.
+configMapGenerator:
+  - name: prometheus-config
+    namespace: monitoring
+    files:
+      - prometheus.yml
+      - alerts.yml
+  - name: grafana-datasources
+    namespace: monitoring
+    files:
+      - datasources.yml=grafana-datasources.yml
+  - name: grafana-dashboard-provider
+    namespace: monitoring
+    files:
+      - dashboards.yml=grafana-dashboards.yml
+  - name: grafana-dashboards
+    namespace: monitoring
+    files:
+      - dashboards/heart-api.json
+
+secretGenerator:
+  # Local demo credentials only (Grafana is bound to localhost). Change before any shared use.
+  - name: grafana-admin
+    namespace: monitoring
+    literals:
+      - admin-user=admin
+      - admin-password=heart-mlops-demo

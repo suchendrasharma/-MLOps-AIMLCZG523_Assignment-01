@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: heart-api-config
+  namespace: heart-mlops
+  labels:
+    app.kubernetes.io/name: heart-api
+    app.kubernetes.io/part-of: heart-mlops
+data:
+  LOG_LEVEL: "INFO"
+  MODEL_PATH: "/app/models/model.joblib"

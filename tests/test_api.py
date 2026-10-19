@@ -120,6 +120,13 @@ class TestMetrics:
         assert 'http_requests_total{handler="/predict"' in text
         assert "http_request_duration_seconds" in text
 
+    def test_latency_histogram_resolves_millisecond_requests(self, client):
+        client.post("/predict", json=HIGH)
+        text = client.get("/metrics").text
+        for le in ("0.005", "0.01", "0.025", "0.05"):
+            assert (f'http_request_duration_seconds_bucket{{handler="/predict",le="{le}",'
+                    'method="POST"}') in text, le
+
 
 class TestLogging:
     def test_request_and_prediction_are_logged(self, client, caplog):

@@ -1,0 +1,65 @@
+# Alert rules for the heart-api service. Visible at http://localhost:9090/alerts.
+groups:
+  - name: heart-api-availability
+    rules:
+      - alert: HeartApiDown
+        expr: sum(up{job="heart-api"}) == 0 or absent(up{job="heart-api"})
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: No heart-api pod is being scraped successfully
+      - alert: HeartApiReplicasDegraded
+        expr: sum(up{job="heart-api"}) < 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Only {{ $value }} heart-api replica(s) up (desired 2)"
+
+  - name: heart-api-golden-signals
+    rules:
+      - alert: HeartApiHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="heart-api", status="5xx"}[5m]))
+            / sum(rate(http_requests_total{job="heart-api"}[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 5% of requests fail with 5xx ({{ $value | humanizePercentage }})"
+      - alert: HeartApiHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (
+            rate(http_request_duration_seconds_bucket{job="heart-api", handler="/predict"}[5m])
+          )) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "/predict p95 latency above 500 ms ({{ $value | humanizeDuration }})"
+      - alert: HeartApiManyInvalidRequests
+        expr: |
+          sum(rate(http_requests_total{job="heart-api", status="4xx"}[10m]))
+            / sum(rate(http_requests_total{job="heart-api"}[10m])) > 0.25
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: More than 25% of requests rejected by validation (client or schema issue?)
+
+  - name: heart-model-behaviour
+    rules:
+      # In training, 46% of patients had heart disease. If the share of high-risk
+      # predictions drifts far from that, the input population or the model changed.
+      - record: heart:high_risk_share:rate30m
+        expr: |
+          sum(rate(heart_predictions_total{risk_label="high risk"}[30m]))
+            / sum(rate(heart_predictions_total[30m]))
+      - alert: HeartPredictionDrift
+        expr: heart:high_risk_share:rate30m < 0.2 or heart:high_risk_share:rate30m > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High-risk prediction share is {{ $value | humanizePercentage }} (training base rate 46%)"

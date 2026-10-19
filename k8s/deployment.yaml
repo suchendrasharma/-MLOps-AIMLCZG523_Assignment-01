@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heart-api
+  namespace: heart-mlops
+  labels:
+    app.kubernetes.io/name: heart-api
+    app.kubernetes.io/component: model-server
+    app.kubernetes.io/part-of: heart-mlops
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: heart-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # never drop below the desired replica count during a rollout
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: heart-api
+        app.kubernetes.io/component: model-server
+        app.kubernetes.io/part-of: heart-mlops
+      annotations:
+        # picked up by the Prometheus scrape config in k8s/monitoring
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      automountServiceAccountToken: false  # the API never talks to the Kubernetes API
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: heart-api
+          # Built locally and imported into the cluster by scripts/k8s_deploy.ps1 (Docker
+          # Desktop's kind node has its own image store), so no registry pull is needed.
+          # Bump the tag for every new build: the same tag is never re-pulled.
+          image: heart-api:1.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: heart-api-config
+          lifecycle:
+            preStop:
+              # Keep serving while the endpoint removal reaches kube-proxy; without this,
+              # a rolling update drops the few requests routed to a pod that already exited.
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              # 500m throttled ~12% of CFS periods under 8 req/s; 1 CPU removed throttling
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:          # model load: allow up to 60 s before liveness kicks in
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:        # only route traffic to pods with a loaded model
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:         # restart a hung process
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp            # writable scratch space despite the read-only root fs
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

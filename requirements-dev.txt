@@ -4,6 +4,7 @@
 pytest==8.3.3
 pytest-cov==6.0.0
 httpx==0.27.2
+pyyaml==6.0.3  # used directly by tests/test_k8s_manifests.py
 ruff==0.7.4
 
 # Notebooks

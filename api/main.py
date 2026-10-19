@@ -84,7 +84,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(
+# The per-handler latency histogram defaults to buckets (0.1, 0.5, 1) s, which makes every
+# percentile of a ~10 ms endpoint an interpolation artefact; use buckets that resolve it.
+LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 1, 2.5)
+Instrumentator(excluded_handlers=["/metrics"]).instrument(
+    app, latency_lowr_buckets=LATENCY_BUCKETS).expose(
     app, endpoint="/metrics", include_in_schema=False)
 
 

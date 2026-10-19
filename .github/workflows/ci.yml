@@ -47,6 +47,18 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
+      - name: Kubeconform (Kubernetes manifest schema validation)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C "$RUNNER_TEMP" kubeconform
+          for dir in k8s k8s/monitoring; do
+            echo "--- $dir"
+            kubectl kustomize "$dir" | "$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.30.0 -
+          done
+      - name: Promtool (Prometheus config and alert rules)
+        run: |
+          docker run --rm -v "$PWD/k8s/monitoring:/etc/prometheus:ro" --entrypoint /bin/promtool \
+            prom/prometheus:v2.54.1 check config /etc/prometheus/prometheus.yml
 
   test:
     name: Unit tests
