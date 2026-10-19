@@ -33,7 +33,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 
 from heart import config, plotting
-from heart.data import load_clean, validate
+from heart.data import load_clean, to_csv_text, validate
 from heart.evaluate import (
     CV_SCORERS,
     METRICS,
@@ -92,7 +92,7 @@ def split(df: pd.DataFrame):
 
 
 def data_fingerprint(df: pd.DataFrame) -> str:
-    return hashlib.sha256(df.to_csv(index=False).encode()).hexdigest()
+    return hashlib.sha256(to_csv_text(df).encode()).hexdigest()
 
 
 def git_commit() -> str:

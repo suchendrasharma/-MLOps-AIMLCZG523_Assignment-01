@@ -1,0 +1,239 @@
+# CI/CD for the heart disease classifier.
+#
+#   lint ──▶ test ──▶ train (data check + quality gate) ──▶ docker (build ▶ smoke test ▶ push)
+#
+# Every job depends on the previous one, so any lint error, failing test, data mismatch,
+# degraded model or broken container stops the pipeline. Each job uploads its reports
+# and outputs as downloadable artifacts. Images are pushed to GHCR only from main.
+name: CI/CD pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash  # bash -eo pipefail: a failure anywhere in a pipe fails the step
+
+env:
+  PYTHON_VERSION: "3.11"
+  PYTHONIOENCODING: utf-8
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    name: Lint (ruff + hadolint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install ruff (version pinned in requirements-dev.txt)
+        run: pip install "$(grep -E '^ruff==' requirements-dev.txt)"
+      - name: Ruff (Python lint)
+        run: ruff check . --output-format=github
+      - name: Hadolint (Dockerfile lint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+  test:
+    name: Unit tests
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e .
+          pip check
+      - name: Run pytest with coverage
+        run: |
+          mkdir -p test-reports
+          pytest --cov --cov-report=xml:test-reports/coverage.xml \
+                 --cov-report=html:test-reports/htmlcov --cov-report=term-missing \
+                 --cov-fail-under=85 --junitxml=test-reports/junit.xml
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "## Test coverage" >> "$GITHUB_STEP_SUMMARY"
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: test-reports/
+          retention-days: 14
+
+  train:
+    name: Train, track & gate model
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Keep committed model metadata as the quality baseline
+        run: cp models/metadata.json "$RUNNER_TEMP/baseline_metadata.json"
+      - name: Re-acquire data from UCI and verify the cleaned dataset
+        run: |
+          cp data/processed/heart_clean.csv "$RUNNER_TEMP/committed_clean.csv"
+          if python scripts/download_data.py --force; then
+            python -m heart.data
+            if cmp -s data/processed/heart_clean.csv "$RUNNER_TEMP/committed_clean.csv"; then
+              echo "Cleaned dataset reproduced byte-for-byte from the UCI source."
+            else
+              echo "::error::Cleaned dataset differs from the committed copy (source or cleaning changed)."
+              diff <(head -5 "$RUNNER_TEMP/committed_clean.csv") <(head -5 data/processed/heart_clean.csv) || true
+              exit 1
+            fi
+          else
+            echo "::warning::UCI download failed; training on the committed cleaned dataset."
+          fi
+      - name: Train models (grid search, MLflow tracking, registry)
+        run: python -m heart.train 2>&1 | tee train.log
+      - name: Model quality gate
+        run: |
+          python scripts/check_model_quality.py \
+            --baseline "$RUNNER_TEMP/baseline_metadata.json" \
+            --candidate models/metadata.json --max-drop 0.02 --min-auc 0.85 | tee gate.md
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Model training"
+            echo '```'
+            grep -A8 -E "^\s+model\s+features" train.log || tail -15 train.log || true
+            echo '```'
+            echo "## Quality gate vs committed model"
+            cat gate.md 2>/dev/null || echo "gate did not run"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload trained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: |
+            models/model.joblib
+            models/metadata.json
+            models/mlflow_model/
+          retention-days: 30
+      - name: Upload MLflow tracking data, plots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-tracking
+          path: |
+            mlflow.db
+            mlruns/
+            reports/figures/train_*.png
+            train.log
+            gate.md
+          retention-days: 30
+
+  docker:
+    name: Build, smoke-test & push image
+    needs: train
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the model trained in this run
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: models
+      - name: Image name (lower-case owner)
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/heart-api" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Build image (load locally for testing)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: heart-api:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run container and smoke test
+        run: |
+          pip install "$(grep -E '^requests==' requirements.txt)"
+          docker run -d --name heart-api -p 8000:8000 heart-api:ci
+          python scripts/smoke_test.py --url http://127.0.0.1:8000 --wait 60
+      - name: Container logs
+        if: always()
+        run: docker logs heart-api || true
+      - name: Log in to GHCR
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push image
+        if: env.PUSH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+      - name: Job summary
+        if: always()
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "## Container image"
+            echo "- Size: $(docker image inspect heart-api:ci --format '{{.Size}}' 2>/dev/null | awk '{printf "%.0f MB", $1/1e6}')"
+            if [ "$PUSH" = "true" ]; then
+              echo "- Pushed:"
+              while read -r tag; do [ -n "$tag" ] && echo "  - \`$tag\`"; done <<< "$TAGS"
+            else
+              echo "- Not pushed (only pushes from main)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

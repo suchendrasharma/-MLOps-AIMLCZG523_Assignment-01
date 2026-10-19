@@ -78,6 +78,60 @@ python scripts/predict.py data/processed/heart_clean.csv --limit 5
 
 Each prediction returns `prediction` (0/1), `risk_label`, `probability` (P(disease)) and `confidence` (the probability of the predicted class).
 
+## Serving API (FastAPI)
+
+```powershell
+uvicorn api.main:app --reload        # local dev; Swagger UI at http://127.0.0.1:8000/docs
+```
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/predict` | POST | One patient (JSON) → `prediction`, `risk_label`, `probability`, `confidence`, `model_version`, `request_id` |
+| `/predict/batch` | POST | `{"patients": [...]}`, 1–100 patients |
+| `/health` | GET | Liveness/readiness: model name, version, family, sha256, uptime |
+| `/metrics` | GET | Prometheus: HTTP request count and latency, `heart_predictions_total{risk_label}`, `heart_prediction_probability` histogram, `heart_model_info` |
+| `/docs` | GET | OpenAPI / Swagger UI |
+
+- **Validation:** Pydantic enforces UCI codes (for example `cp ∈ {1,2,3,4}`), clinical ranges and required fields, and rejects unknown fields with a 422. `ca` and `thal` may be `null`; they are imputed by the pipeline.
+- **Logging:** one JSON line per request (`request_id`, method, path, status, duration_ms) and per prediction. `X-Request-ID` is accepted or generated, then echoed back. Probe endpoints log at DEBUG only.
+- **Safety:** on startup the API checks the model's sha256 against `metadata.json` and refuses to serve a mismatched file. Unhandled errors return a generic 500 with the request ID; details go to the log only.
+
+Example:
+```powershell
+curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" --data "@samples/patient_high_risk.json"
+# {"prediction":1,"risk_label":"high risk","probability":0.9915,"confidence":0.9915,"model_version":"2","request_id":"..."}
+```
+
+## Docker
+
+```powershell
+docker build -t heart-api:latest .
+docker run -d --name heart-api -p 8000:8000 heart-api:latest
+python scripts/smoke_test.py --url http://127.0.0.1:8000     # 7 end-to-end checks, exits non-zero on failure
+docker logs heart-api                                        # structured JSON logs
+```
+
+- **Multi-stage build:** dependencies are installed into a venv in the builder stage, and the runtime stage copies only the venv, `src/heart`, `api` and the model files. `.dockerignore` is an allow-list.
+- **Serving dependencies only:** `requirements-serve.txt` has no mlflow, matplotlib or jupyter. Its pins must match `requirements.txt`, which a test enforces. pip, setuptools and the libraries' bundled test suites are removed. The image is about 600 MB, mostly scipy, scikit-learn, pandas and numpy.
+- **Runs as non-root** (uid 10001), with a Docker `HEALTHCHECK` on `/health`. uvicorn is PID 1 (exec form), so `docker stop` shuts it down gracefully.
+
+## CI/CD (GitHub Actions)
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request. Each job needs the previous one, so any failure stops the pipeline:
+
+```
+lint ──▶ test ──▶ train ──▶ docker
+```
+
+| Job | What it does | Fails when | Artifacts / summary |
+|---|---|---|---|
+| **lint** | `ruff check` (inline annotations on the PR), `hadolint` on the Dockerfile | Lint errors | n/a |
+| **test** | Installs pinned dependencies, `pip check`, then pytest with coverage | Any test fails, or coverage is below 85% | `test-reports` (JUnit, coverage XML/HTML); coverage table in the job summary |
+| **train** | Re-downloads the UCI data and checks the cleaned CSV is byte-identical; runs the full grid search with MLflow; runs the **quality gate** against the committed model | The data differs, training errors, or test ROC-AUC drops by more than 0.02 or falls below 0.85 | `trained-model` (joblib + MLflow model + metadata), `mlflow-tracking` (mlflow.db, mlruns, plots, logs); metrics table in the job summary |
+| **docker** | Builds the image **with the model trained in this run**, runs it, then runs `scripts/smoke_test.py` | The build or any smoke check fails (container logs are printed) | Image pushed to `ghcr.io/suchendrasharma/heart-api` (`latest`, `sha-<commit>`) on `main` only |
+
+All steps run under `bash -eo pipefail`, so a failure inside a piped command (for example `train | tee`) still fails the step.
+
 ## Tests
 
 ```powershell
@@ -94,6 +148,9 @@ pytest --cov              # with coverage report
 | `test_model.py` | Metrics, champion selection rule, determinism, save/load, prediction schema, end-to-end training |
 | `test_reproducibility.py` | Committed artifacts: checksums, data hash, rebuild equality, metric recomputation |
 | `test_predict_cli.py` | CLI on the sample files, CSV input, error handling |
+| `test_api.py` | Endpoints, validation (422s), batch limits, request IDs, JSON logs, Prometheus metrics, 500/503 paths, tampered-model refusal |
+| `test_quality_gate.py` | CI quality gate: pass/fail decisions, absolute floor, exit codes, Markdown report |
+| `test_api_packaging.py` | Serve pins match the main pins, no training stack in the image, non-root user, health check, `.dockerignore` allow-list |
 
 ## Project layout
 

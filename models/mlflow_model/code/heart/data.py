@@ -70,11 +70,22 @@ def load_clean(path: Path = config.CLEAN_FILE) -> pd.DataFrame:
     return df
 
 
+def to_csv_text(df: pd.DataFrame) -> str:
+    """CSV with '\\n' line endings on every OS (pandas defaults to os.linesep), so the
+    file and its hash are byte-identical on Windows and Linux."""
+    return df.to_csv(index=False, lineterminator="\n")
+
+
+def save_clean(df: pd.DataFrame, path: Path = config.CLEAN_FILE) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(to_csv_text(df).encode())
+    return path
+
+
 def main() -> None:
     df = clean(load_raw())
     validate(df)
-    config.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(config.CLEAN_FILE, index=False)
+    save_clean(df)
     print(
         f"Saved {config.CLEAN_FILE} | rows={len(df)} | "
         f"missing={df.isna().sum()[lambda s: s > 0].to_dict()} | "

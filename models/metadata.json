@@ -1,6 +1,6 @@
 {
   "model_name": "heart-disease-classifier",
-  "model_version": "2",
+  "model_version": "3",
   "model_family": "logistic_regression",
   "feature_set": "base",
   "best_params": {
@@ -43,11 +43,11 @@
     "test_recall": 0.9286,
     "test_f1": 0.8814
   },
-  "mlflow_run_id": "6cc2d352d6b64da3adec49272aaff480",
+  "mlflow_run_id": "f996b7b0437d4e2c8940a84431727ac3",
   "model_sha256": "d864f31609ea146451f4ac15710cba003e93341e319716ecab3f71c6e613867b",
-  "trained_at": "2026-10-19T10:12:25+00:00",
-  "data_sha256": "0e4a3cbe3c0d1b8d9d5bf9d39003e0ffb10424821a6a646753f4ea25acc45a29",
-  "git_commit": "0f5b994",
+  "trained_at": "2026-10-19T11:25:59+00:00",
+  "data_sha256": "a22e72853f4638c3617c3de7f8559ef1b90676bd42e299b256c67d6384153979",
+  "git_commit": "f098ab6",
   "sklearn_version": "1.5.2",
   "n_train": "242",
   "n_test": "61",

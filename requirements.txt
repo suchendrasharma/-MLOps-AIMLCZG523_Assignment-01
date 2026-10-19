@@ -16,5 +16,6 @@ requests==2.32.3
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pydantic==2.9.2
+anyio==4.6.2.post1  # newer releases emit deprecation warnings inside starlette 0.41
 prometheus-fastapi-instrumentator==7.0.0
 python-json-logger==2.0.7

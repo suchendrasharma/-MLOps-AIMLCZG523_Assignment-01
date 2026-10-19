@@ -1,0 +1,9 @@
+# Allow-list: the build context contains only what the image needs.
+*
+!requirements-serve.txt
+!src/heart/
+!api/
+!models/model.joblib
+!models/metadata.json
+**/__pycache__
+**/*.pyc

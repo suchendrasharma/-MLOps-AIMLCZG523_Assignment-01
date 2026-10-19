@@ -30,7 +30,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["heart"]
+source = ["heart", "api"]
 
 [tool.coverage.report]
 show_missing = true

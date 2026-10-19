@@ -1,0 +1,12 @@
+# Minimal runtime for the API container (no training/tracking/plotting stack).
+# Versions must match requirements.txt; tests/test_api_packaging.py enforces this.
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2
+joblib==1.4.2
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.9.2
+anyio==4.6.2.post1
+prometheus-fastapi-instrumentator==7.0.0
+python-json-logger==2.0.7

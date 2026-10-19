@@ -28,3 +28,8 @@ mlflow.db
 .idea/
 .DS_Store
 Thumbs.db
+
+# CI outputs
+test-reports/
+train.log
+gate.md
