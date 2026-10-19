@@ -238,7 +238,7 @@ pytest --cov              # with coverage report
   docker run --rm -v "${PWD}:/work" heart-report   # writes the DOCX and PDF
   ```
 - **Screenshots:** the [screenshots/](screenshots/) folder. Missing ones appear as labelled placeholders in the report, with the command to capture them.
-- **Video:** recording script in [reports/video_script.md](reports/video_script.md).
+- **Video:** [reports/video/heart_mlops_pipeline_demo.mp4](reports/video/heart_mlops_pipeline_demo.mp4) (4 min 19 s, captioned, no audio). It records the running system: data, training, MLflow, tests, CI/CD, Docker, Kubernetes (including self-healing), Swagger, Grafana, Prometheus and logs. A narration script is in [reports/video_script.md](reports/video_script.md).
 
 ## Project layout
 
