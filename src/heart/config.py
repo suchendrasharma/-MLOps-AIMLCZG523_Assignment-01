@@ -1,5 +1,6 @@
 """Central configuration: paths, column definitions and seeds."""
 
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -12,7 +13,24 @@ FIGURES_DIR = PROJECT_ROOT / "reports" / "figures"
 RAW_FILE = RAW_DIR / "processed.cleveland.data"
 CLEAN_FILE = PROCESSED_DIR / "heart_clean.csv"
 
+MODEL_FILE = MODELS_DIR / "model.joblib"
+METADATA_FILE = MODELS_DIR / "metadata.json"
+
 RANDOM_STATE = 42
+TEST_SIZE = 0.2
+CV_FOLDS = 5
+DECISION_THRESHOLD = 0.5
+
+# MLflow: SQLite backend (needed for the model registry) + local artifact folder.
+# Both can be overridden via env vars (CI and tests point them at a temp dir).
+MLFLOW_TRACKING_URI = os.environ.get(
+    "MLFLOW_TRACKING_URI", f"sqlite:///{(PROJECT_ROOT / 'mlflow.db').as_posix()}"
+)
+MLFLOW_ARTIFACT_ROOT = os.environ.get(
+    "HEART_MLFLOW_ARTIFACT_ROOT", (PROJECT_ROOT / "mlruns").as_uri()
+)
+EXPERIMENT_NAME = "heart-disease-classification"
+REGISTERED_MODEL_NAME = "heart-disease-classifier"
 
 # Column order of the UCI "processed" files (no header row in the source).
 RAW_COLUMNS = [

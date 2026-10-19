@@ -1,0 +1,54 @@
+{
+  "model_name": "heart-disease-classifier",
+  "model_version": "1",
+  "model_family": "logistic_regression",
+  "feature_set": "base",
+  "best_params": {
+    "C": 0.1,
+    "class_weight": null,
+    "penalty": "l2"
+  },
+  "decision_threshold": 0.5,
+  "input_features": [
+    "age",
+    "trestbps",
+    "chol",
+    "thalach",
+    "oldpeak",
+    "ca",
+    "sex",
+    "cp",
+    "fbs",
+    "restecg",
+    "exang",
+    "slope",
+    "thal"
+  ],
+  "cv_metrics": {
+    "cv_roc_auc": 0.9117,
+    "cv_roc_auc_std": 0.0174,
+    "cv_accuracy": 0.8469,
+    "cv_accuracy_std": 0.029,
+    "cv_precision": 0.8695,
+    "cv_precision_std": 0.0662,
+    "cv_recall": 0.7921,
+    "cv_recall_std": 0.0482,
+    "cv_f1": 0.8262,
+    "cv_f1_std": 0.0298
+  },
+  "test_metrics": {
+    "test_roc_auc": 0.9621,
+    "test_accuracy": 0.8852,
+    "test_precision": 0.8387,
+    "test_recall": 0.9286,
+    "test_f1": 0.8814
+  },
+  "mlflow_run_id": "f5f71e5b504c4a79a6d7de95bfa4869e",
+  "trained_at": "2026-10-19T09:43:39+00:00",
+  "data_sha256": "0e4a3cbe3c0d1b8d9d5bf9d39003e0ffb10424821a6a646753f4ea25acc45a29",
+  "git_commit": "4a21ca9",
+  "sklearn_version": "1.5.2",
+  "n_train": "242",
+  "n_test": "61",
+  "mode": "full"
+}
